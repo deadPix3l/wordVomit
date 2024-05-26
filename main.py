@@ -135,7 +135,7 @@ def processChains(chain):
 
 
 def scoreChain(chain):
-    return sum(scoreWord(word) for word in chain)
+    return sum(scoreWord(word) for word in chain) + len(chain)-1
 
 def scoreChainNormalized(chain):
     return scoreChain(chain)/(len(chain[-1])-1)
@@ -160,12 +160,13 @@ def setup():
     parser.add_argument("-w", "--wordlist", type=argparse.FileType('r'), default="dictionary.txt")
     parser.add_argument("-p", "--points", type=float, default=0.21, help="Value per point")
     parser.add_argument("-c", "--cost", type=float, default=15, help="Cost to buy 7 letters")
-    parser.add_argument("--actual-cost", type=float, default=None)
-    parser.add_argument("-s", "--sort-index", action="store", type=int, default=0, help="Sort on Pure Score (default: Normalized)")
-    parser.add_argument("-b", "--breakeven", action="store", type=float, default=None)
-    parser.add_argument("-t", "--top", action="store", default=25, type=int)
-    parser.add_argument("-m", "--missing", action="store", default=1, type=int)
-    parser.add_argument("--all-words", action="store_true")
+    parser.add_argument("--actual-cost", type=float, default=None, help="Cost to buy 1 letter (overrides -c)")
+    parser.add_argument("-s", "--sort-index", action="store", type=int, default=1, help="Which field to sort on (default: delta)")
+    parser.add_argument("-b", "--breakeven", action="store", type=float, default=None, help="Manually override breakeven price")
+    parser.add_argument("-t", "--top", action="store", default=25, type=int, help="Show top N words (default:25)")
+    parser.add_argument("-m", "--missing", action="store", default=1, type=int, help="How many Letters are you allowed to not have (default: 1)")
+    parser.add_argument("--all-words", action="store_true", help="show ALL words, even ones you cant make")
+    parser.add_argument("--ignore-missing", action="store", type=str, default="", help="ignore certain missing letters (default:'', recommended: 'QWXZ')")
     return parser
 
 def main():
@@ -175,10 +176,10 @@ def main():
     if args.actual_cost:
         args.cost = args.actual_cost*7
 
-    if args.breakeven is not None:
-        breakeven = args.breakeven
-    else:
-        breakeven = ceil((args.cost/args.points)/7)
+    if args.breakeven is None:
+        args.breakeven = (args.cost/args.points)/7
+
+    breakeven = args.breakeven
 
 
     print(banner)
@@ -206,29 +207,34 @@ def main():
     profitableWords = [
             (
                 scoreWord(word),
-                scoreWordNormalized(word),
+                scoreWordNormalized(word)-args.breakeven,
                 ", ".join(a*b for a,b in missingLetters(myletters, word)),
                 word
             )
-            for word in wordsICanMake if scoreWordNormalized(word)>=breakeven]
+            for word in wordsICanMake if scoreWordNormalized(word)-breakeven > 0]
 
     try:
         profitableWords.sort(key=lambda x: x[args.sort_index], reverse=True)
 
         print(f"  Top-{args.top} Most Profitable Words (One Shot):")
-        print(tabulate(profitableWords[:args.top], headers=("pts", "pts (normalized)", "Missing Letters", "Word")))
+        print(tabulate(profitableWords[:args.top], headers=("pts", "delta (+/-)", "Missing Letters", "Word")))
         print()
     except IndexError:
         pass
 
     x = generateChains(wordsICanMake, myletters)
 
-    scoresofChains= [ [scoreChain(i), scoreChainNormalized(i), missingLetterChain(i, myletters), " -> ".join(i), i[-1], scoreChain(i)-scoreWord(i[-1])] for i in processChains(x)]
+    scoresofChains= [ [scoreChain(i), scoreChainNormalized(i)-args.breakeven, missingLetterChain(i, myletters), " -> ".join(i), i[-1], scoreChain(i)-scoreWord(i[-1])] for i in processChains(x)]
     scoresofChains = [i for i in scoresofChains if not (i[2] not in i[4])]
     scoresofChains.sort(reverse=True, key=lambda x: x[args.sort_index])
-    profitableChains = [i for i in scoresofChains if i[1]>=breakeven]
+    profitableChains = [i for i in scoresofChains if i[1]>=0]
 
-    print(tabulate(profitableChains[:args.top], headers=("pts","pts (normalized)", "Missing Letter", "Word Chains", "Final Word", "Bonus")))
+    profitableChains = [i for i in profitableChains if (i[2]=="" or set(i[2])&set(i[3].partition(" ")[0]))]
+
+    if args.ignore_missing:
+        profitableChains = [i for i in profitableChains if not (set(i[2]) & set(args.ignore_missing)) ]
+
+    print(tabulate(profitableChains[:args.top], headers=("pts","delta (+/-)", "Missing Letter", "Word Chains", "Final Word", "Bonus")))
 
 
 
