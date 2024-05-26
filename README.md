@@ -1,5 +1,7 @@
 # Word Vomit
 
+![Logo](/assets/logo.png)
+
 A strategy script for Words3 or other Scrabble-likes
 
 
