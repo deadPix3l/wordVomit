@@ -18,7 +18,7 @@ PRs Welcome I guess?
 ./main.py abc3de4f
 ```
 
-The first argument is your letters, using run-length-encoding (RLE)
+The first argument is your letters, using run-length-encoding (RLE).
 If you want to tell the program you have 1 A, 2 B's, 3 C's, 1 D, and 4 E's,
 you can either just repeat characters: `ABBCCCDEEEE` or follow each letter with a count `a1b2c3d1e4`
 You can omit the count and it will be assumed to be 1. you can repeat letters: `a3...a4...a2` is equivilant to `a9`
